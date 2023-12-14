@@ -293,7 +293,7 @@ class ChipsInputState<T> extends State<ChipsInput<T>>
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         final renderBox = context.findRenderObject() as RenderBox;
-        // await Scrollable.of(context).position.ensureVisible(renderBox);
+        await Scrollable.of(context).position.ensureVisible(renderBox);
       });
     });
   }
