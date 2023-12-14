@@ -51,6 +51,7 @@ class ChipsInput<T> extends StatefulWidget {
     this.allowChipEditing = false,
     this.focusNode,
     this.initialSuggestions,
+    this.debounceTime,
   })  : assert(maxChips == null || initialValue.length <= maxChips),
         super(key: key);
 
@@ -75,6 +76,7 @@ class ChipsInput<T> extends StatefulWidget {
   final bool allowChipEditing;
   final FocusNode? focusNode;
   final List<T>? initialSuggestions;
+  final Duration? debounceTime;
 
   // final Color cursorColor;
 
@@ -96,6 +98,7 @@ class ChipsInputState<T> extends State<ChipsInput<T>>
   late SuggestionsBoxController _suggestionsBoxController;
   final _layerLink = LayerLink();
   final Map<T?, String> _enteredTexts = <T, String>{};
+  Timer? _debounce;
 
   TextInputConfiguration get textInputConfiguration => TextInputConfiguration(
         inputType: widget.inputType,
@@ -114,6 +117,7 @@ class ChipsInputState<T> extends State<ChipsInput<T>>
       widget.maxChips != null && _chips.length >= widget.maxChips!;
 
   FocusNode? _focusNode;
+
   FocusNode get _effectiveFocusNode =>
       widget.focusNode ?? (_focusNode ??= FocusNode());
   late FocusAttachment _nodeAttachment;
@@ -287,23 +291,28 @@ class ChipsInputState<T> extends State<ChipsInput<T>>
   void _scrollToVisible() {
     Future.delayed(const Duration(milliseconds: 300), () {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
         final renderBox = context.findRenderObject() as RenderBox;
-        await Scrollable.of(context)?.position.ensureVisible(renderBox);
+        // await Scrollable.of(context).position.ensureVisible(renderBox);
       });
     });
   }
 
-  void _onSearchChanged(String value) async {
-    final localId = ++_searchId;
-    final results = await widget.findSuggestions(value);
-    if (_searchId == localId && mounted) {
-      setState(() => _suggestions =
-          results.where((r) => !_chips.contains(r)).toList(growable: false));
-    }
-    _suggestionsStreamController.add(_suggestions ?? []);
-    if (!_suggestionsBoxController.isOpened && !_hasReachedMaxChips) {
-      _suggestionsBoxController.open();
-    }
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(widget.debounceTime ?? const Duration(milliseconds: 500),
+        () async {
+      final localId = ++_searchId;
+      final results = await widget.findSuggestions(value);
+      if (_searchId == localId && mounted) {
+        setState(() => _suggestions =
+            results.where((r) => !_chips.contains(r)).toList(growable: false));
+      }
+      _suggestionsStreamController.add(_suggestions ?? []);
+      if (!_suggestionsBoxController.isOpened && !_hasReachedMaxChips) {
+        _suggestionsBoxController.open();
+      }
+    });
   }
 
   void _closeInputConnectionIfNeeded() {
@@ -352,7 +361,7 @@ class ChipsInputState<T> extends State<ChipsInput<T>>
             composing: TextRange.empty,
           ));
     }
-    _closeInputConnectionIfNeeded(); //Hack for #34 (https://github.com/danvick/flutter_chips_input/issues/34#issuecomment-684505282). TODO: Find permanent fix
+    // _closeInputConnectionIfNeeded(); //Hack for #34 (https://github.com/danvick/flutter_chips_input/issues/34#issuecomment-684505282). TODO: Find permanent fix
     _textInputConnection ??= TextInput.attach(this, textInputConfiguration);
     _textInputConnection?.setEditingState(_value);
   }
@@ -492,4 +501,14 @@ class ChipsInputState<T> extends State<ChipsInput<T>>
 
   @override
   void removeTextPlaceholder() {}
+
+  @override
+  void didChangeInputControl(
+      TextInputControl? oldControl, TextInputControl? newControl) {}
+
+  @override
+  void insertContent(KeyboardInsertedContent content) {}
+
+  @override
+  void performSelector(String selectorName) {}
 }
