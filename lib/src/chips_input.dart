@@ -460,6 +460,7 @@ class ChipsInputState<T> extends State<ChipsInput<T>>
       onNotification: (SizeChangedLayoutNotification val) {
         WidgetsBinding.instance.addPostFrameCallback((_) async {
           _suggestionsBoxController.overlayEntry?.markNeedsBuild();
+          _scrollToVisible();
         });
         return true;
       },
